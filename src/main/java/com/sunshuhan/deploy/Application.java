@@ -15,10 +15,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Auto deploy when pushed code to git，代码推送自动发布部署
- * precondition 要求：
- * 1. deploy shell 自己写好发布脚本；
- * 2. git hook 在git服务器上配置hook调用本服务接口;
+ * Auto deploy when pushed code to git，代码推送自动部署
  */
 @RestController
 @EnableAutoConfiguration
