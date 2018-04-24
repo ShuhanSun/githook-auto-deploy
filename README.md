@@ -2,9 +2,14 @@
 ## git-auto-deploy
 
 #### Abstract
-Auto deploy when pushed code to git;  实现代码推送git后，自动发布部署;
+Auto deploy when pushed code to git;  代码推送自动部署;
+
 using git-hook and spring-boot; 使用git-hook 与spring-boot实现;
+
+#### Feature
+
 support multi-user; 支持多用户;
+
 support multi-project; 支持多项目;
 
 #### Use the steps Description ：
