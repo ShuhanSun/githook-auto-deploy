@@ -133,8 +133,11 @@ public class Application {
 //        String user_email = Optional.of(requestBodyMap.get("user_email")).orElse("").toString();
 
         String refBranch = Optional.of(requestBodyMap.get("ref")).orElse("").toString();
-        String userName = Optional.of(requestBodyMap.get("user_name")).orElse("").toString();
-        String checkoutSha = Optional.of(requestBodyMap.get("checkout_sha")).orElse("").toString();
+
+        //Body format github different from github
+        String userName = Optional.ofNullable(requestBodyMap.get("user_name")).orElse(githubUserName(requestBodyMap)).toString();
+        String checkoutSha = Optional.ofNullable(requestBodyMap.get("checkout_sha")).orElse(requestBodyMap.get("after")).toString();//github only after
+
         String lashPushSha = gitPushEvenCache.get(cacheKey(projectName, userName));
         if (lashPushSha != null && lashPushSha.equals(checkoutSha)) {
             // exclude repetitive event  重复的事件，可能一次push多个重复事件
@@ -153,6 +156,15 @@ public class Application {
         return "success";
     }
 
+    private static String githubUserName(Map<String, Object> requestBodyMap) {
+        try {
+            return ((Map) requestBodyMap.get("pusher")).get("name").toString();
+        } catch (Exception e) {
+            LOGGER.error("error_githubUserName" + requestBodyMap, e);
+        }
+        return "";
+    }
+
     private static String cacheKey(String projectName, String userName) {
         return projectName + ":" + userName;
     }
@@ -167,7 +179,7 @@ public class Application {
             Runtime.getRuntime().exec(deployPath);
             LOGGER.info(projectName + " execute deploy: " + deployPath);
         } catch (Exception e) {
-            LOGGER.error("reDeploy : " + projectName, e);
+            LOGGER.error("error_reDeploy : " + projectName, e);
         }
     }
 
