@@ -45,14 +45,16 @@ public class Application {
      * manual deploy 手动执行重新发布
      *
      * @param projectName
+     * @param emailAddress 执行人邮件地址
      * @return
      */
     @RequestMapping(value = "/manual/{project}", method = {RequestMethod.GET, RequestMethod.POST})
     @ResponseBody
-    public String deploy(@PathVariable("project") String projectName) {
+    public String deploy(@PathVariable("project") String projectName,
+                         @RequestParam(value = "email", required = false, defaultValue = "sunshuhan@souche.com") String emailAddress) {
         LOGGER.info("auto.deploy.branch :" + autoDeployBranch);
         LOGGER.info("deploy.shell.path.template :" + deployShellPathTemplate);
-        reDeploy(projectName);
+        reDeploy(projectName, emailAddress);
         return "success";
     }
 
@@ -128,15 +130,13 @@ public class Application {
         if (requestBodyMap == null) {
             return "fail";
         }
-//        String object_kind = Optional.of(requestBodyMap.get("object_kind")).orElse("").toString();//push
-//        String total_commits_count = Optional.of(requestBodyMap.get("total_commits_count")).orElse("").toString();
-//        String user_email = Optional.of(requestBodyMap.get("user_email")).orElse("").toString();
 
-        String refBranch = Optional.of(requestBodyMap.get("ref")).orElse("").toString();
+        String refBranch = Optional.ofNullable(requestBodyMap.get("ref")).orElse("").toString();
 
         //Body format github different from github
-        String userName = Optional.ofNullable(requestBodyMap.get("user_name")).orElseGet(()->githubUserName(requestBodyMap)).toString();
-        String checkoutSha = Optional.ofNullable(requestBodyMap.get("checkout_sha")).orElse(requestBodyMap.get("after")).toString();//github only after
+        String userName = Optional.ofNullable(requestBodyMap.get("user_name")).orElseGet(() -> githubUserName(requestBodyMap)).toString();
+        String user_email = Optional.ofNullable(requestBodyMap.get("user_email")).orElseGet(()->githubUserEmail(requestBodyMap)).toString();
+        String checkoutSha = Optional.ofNullable(requestBodyMap.get("checkout_sha")).orElse(requestBodyMap.get("after")).toString();
 
         String lashPushSha = gitPushEvenCache.get(cacheKey(projectName, userName));
         if (lashPushSha != null && lashPushSha.equals(checkoutSha)) {
@@ -152,7 +152,7 @@ public class Application {
         if (!needRefBranch.equals(refBranch)) {
             return "fail";
         }
-        reDeploy(projectName);
+        reDeploy(projectName, user_email);
         return "success";
     }
 
@@ -161,6 +161,14 @@ public class Application {
             return ((Map) requestBodyMap.get("pusher")).get("name").toString();
         } catch (Exception e) {
             LOGGER.error("error_githubUserName" + requestBodyMap, e);
+        }
+        return "";
+    }
+    private static String githubUserEmail(Map<String, Object> requestBodyMap) {
+        try {
+            return ((Map) requestBodyMap.get("pusher")).get("email").toString();
+        } catch (Exception e) {
+            LOGGER.error("error_githubUserEmail" + requestBodyMap, e);
         }
         return "";
     }
@@ -173,8 +181,12 @@ public class Application {
         return deployShellPathTemplate.replace("{projectName}", projectName);
     }
 
-    private void reDeploy(String projectName) {
-        String deployPath = Optional.ofNullable(deployShellPathMap.get(projectName)).orElse(getDeployShellPath(projectName));
+    private String getDeployShellPathWithEmail(String projectName, String emailAddress) {
+        return "/home/souche/sunshuhan/done_deploy_send_email.sh " + projectName + " " + emailAddress;
+    }
+
+    private void reDeploy(String projectName, String userEmail) {
+        String deployPath = Optional.ofNullable(deployShellPathMap.get(projectName)).orElse(getDeployShellPathWithEmail(projectName, userEmail));
         try {
             Runtime.getRuntime().exec(deployPath);
             LOGGER.info(projectName + " execute deploy: " + deployPath);
