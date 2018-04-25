@@ -135,7 +135,7 @@ public class Application {
         String refBranch = Optional.of(requestBodyMap.get("ref")).orElse("").toString();
 
         //Body format github different from github
-        String userName = Optional.ofNullable(requestBodyMap.get("user_name")).orElse(githubUserName(requestBodyMap)).toString();
+        String userName = Optional.ofNullable(requestBodyMap.get("user_name")).orElseGet(()->githubUserName(requestBodyMap)).toString();
         String checkoutSha = Optional.ofNullable(requestBodyMap.get("checkout_sha")).orElse(requestBodyMap.get("after")).toString();//github only after
 
         String lashPushSha = gitPushEvenCache.get(cacheKey(projectName, userName));
