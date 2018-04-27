@@ -9,9 +9,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -25,9 +23,11 @@ public class Application {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Application.class);
 
-    private static Map<String, String> gitPushEvenCache = new ConcurrentHashMap<>();
+    private static Map<String, Set<String>> gitPushEvenCache = new ConcurrentHashMap<>();
 
     private static Map<String, Boolean> gitHookEnableMap = new HashMap<>();
+
+    private static Map<String, Boolean> deployEnableUserMap = new HashMap<>();
 
     private static Map<String, String> deployShellPathMap = new HashMap<>();
 
@@ -39,6 +39,10 @@ public class Application {
 
     public static void main(String[] args) {
         SpringApplication.run(Application.class, args);
+        gitHookEnableMap.put("venus", true);
+        gitHookEnableMap.put("site", true);
+        gitHookEnableMap.put("qiwa", true);
+        deployEnableUserMap.put("sunshuhan", true);
     }
 
     /**
@@ -67,12 +71,32 @@ public class Application {
     @RequestMapping(value = "/{project}/auto/deploy", method = {RequestMethod.GET, RequestMethod.POST})
     @ResponseBody
     public String autoDeployEnable(@PathVariable("project") String projectName,
-                                   @RequestParam(value = "enable") Boolean enable) {
+                                   @RequestParam(value = "enable", required = false, defaultValue = "true") Boolean enable) {
         LOGGER.info(projectName + " git hook Enable:" + enable);
         if (enable == null) {
             return "fail";
         }
         gitHookEnableMap.put(projectName, enable);
+        return "success";
+    }
+
+    /**
+     * auto deploy user on-off 自动发布用户控制
+     *
+     * @param enable
+     * @return
+     */
+    @RequestMapping(value = "/user/{user}/auto/deploy", method = {RequestMethod.GET, RequestMethod.POST})
+    @ResponseBody
+    public String autoDeployUserEnable(@PathVariable(value = "user") String userName,
+                                       @RequestParam(value = "enable", required = false, defaultValue = "true") Boolean enable) {
+        LOGGER.info(userName + " git hook user Enable:" + enable);
+        if (enable == null) {
+            return "fail";
+        }
+        if (userName != null && userName.length() > 0) {
+            deployEnableUserMap.put(userName, enable);
+        }
         return "success";
     }
 
@@ -123,7 +147,7 @@ public class Application {
     @ResponseBody
     public String deployByGitHook(@RequestBody Map<String, Object> requestBodyMap,
                                   @PathVariable("project") String projectName) {
-        if (gitHookEnableMap.get(projectName) != null && gitHookEnableMap.get(projectName) == false) {
+        if (gitHookEnableMap.get(projectName) == null || !gitHookEnableMap.get(projectName)) {
             LOGGER.info(projectName + " hook api has stopped.");
             return "fail";
         }
@@ -135,24 +159,31 @@ public class Application {
 
         //Body format github different from github
         String userName = Optional.ofNullable(requestBodyMap.get("user_name")).orElseGet(() -> githubUserName(requestBodyMap)).toString();
-        String user_email = Optional.ofNullable(requestBodyMap.get("user_email")).orElseGet(()->githubUserEmail(requestBodyMap)).toString();
+        String userEmail = Optional.ofNullable(requestBodyMap.get("user_email")).orElseGet(() -> githubUserEmail(requestBodyMap)).toString();
         String checkoutSha = Optional.ofNullable(requestBodyMap.get("checkout_sha")).orElse(requestBodyMap.get("after")).toString();
 
-        String lashPushSha = gitPushEvenCache.get(cacheKey(projectName, userName));
-        if (lashPushSha != null && lashPushSha.equals(checkoutSha)) {
+        String cacheKey = cacheKey(projectName, refBranch);
+        Set<String> shaSet = gitPushEvenCache.computeIfAbsent(cacheKey, k -> new HashSet<>());
+        if (shaSet.contains(checkoutSha)) {
             // exclude repetitive event  重复的事件，可能一次push多个重复事件
             // multi-user concurrent event 多个人同时push的情况
-            LOGGER.info("repetitive event：" + lashPushSha);
+            LOGGER.info("repetitive event：" + checkoutSha);
             return "fail";
         }
-        gitPushEvenCache.put(cacheKey(projectName, userName), checkoutSha);
 
-        LOGGER.info(userName + " push code to ------------> " + refBranch);
+        shaSet.add(checkoutSha);
+
+        LOGGER.info(userName + " push code to ------------> " + projectName + ":" + refBranch);
         final String needRefBranch = "refs/heads/" + autoDeployBranch;
         if (!needRefBranch.equals(refBranch)) {
             return "fail";
         }
-        reDeploy(projectName, user_email);
+
+        if (deployEnableUserMap.get(userName) == null || !deployEnableUserMap.get(userName)) {
+            LOGGER.info("unable auto deploy ：" + userName);
+            return "fail";
+        }
+        reDeploy(projectName, userEmail);
         return "success";
     }
 
@@ -164,6 +195,7 @@ public class Application {
         }
         return "";
     }
+
     private static String githubUserEmail(Map<String, Object> requestBodyMap) {
         try {
             return ((Map) requestBodyMap.get("pusher")).get("email").toString();
@@ -173,8 +205,8 @@ public class Application {
         return "";
     }
 
-    private static String cacheKey(String projectName, String userName) {
-        return projectName + ":" + userName;
+    private static String cacheKey(String projectName, String refBranch) {
+        return projectName + ":" + refBranch;
     }
 
     private String getDeployShellPath(String projectName) {
