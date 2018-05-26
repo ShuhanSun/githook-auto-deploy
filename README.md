@@ -7,11 +7,15 @@ Auto deploy when pushed code to git;  代码推送自动部署;
 
 using git-hook and spring-boot; 使用git-hook 与spring-boot实现;
 
+发布机器上部署本服务，通过github(gitlab) web hook push event 触发回调本服务api，执行用户配置的发布脚本。
+
 ### Feature
 
-support multi-user; 支持多用户;
+多用户、多项目的权限控制，
 
-support multi-project; 支持多项目;
+重复事件过滤机制;
+
+邮件提醒功能;
 
 ### Getting started ：
 1. write deploy shell 自己写好发布脚本(拉取最新代码、打包、重启等, 放在项目目录下)
